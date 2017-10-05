@@ -46,7 +46,7 @@ Custom property | Description | Default
           * http://stackoverflow.com/questions/3790935/can-i-hide-the-html5-number-input-s-spin-box
           */
           -moz-appearance: textfield;
-          @apply --paper-time-input-cotnainer;
+          @apply --paper-time-input-container;
         };
         --paper-input-container-input-webkit-spinner: {
           -webkit-appearance: none;
@@ -86,6 +86,9 @@ Custom property | Description | Default
 
       label{
         @apply --paper-font-caption;
+        color: rgba(0,0,0,.56);
+        position: relative;
+        top: 9px;
       }
       .time-input-wrap{
         @apply --layout-horizontal;
@@ -103,7 +106,7 @@ Custom property | Description | Default
       <!-- Hour Input -->
       <paper-input
         id="hour"
-        type="number"
+        type="text"
         value="{{hour}}"
         on-change="_shouldFormatHour"
         required
@@ -113,14 +116,16 @@ Custom property | Description | Default
         max="[[_computeHourMax(format)]]"
         min="0"
         no-label-float
-        disabled="[[disabled]]">
+        disabled="[[disabled]]"
+        on-keydown="_hourKeyDown"
+        on-keyup="_hourKeyUp">
         <span suffix slot="suffix">:</span>
       </paper-input>
 
       <!-- Min Input -->
       <paper-input
         id="min"
-        type="number"
+        type="text"
         value="{{min}}"
         on-change="_formatMin"
         required
@@ -130,7 +135,9 @@ Custom property | Description | Default
         max="59"
         min="0"
         no-label-float
-        disabled="[[disabled]]">
+        disabled="[[disabled]]"
+        on-keydown="_minKeyDown"
+        on-keyup="_minKeyUp">
       </paper-input>
 
       <!-- Dropdown Menu -->
@@ -265,6 +272,129 @@ Custom property | Description | Default
       _shouldFormatHour: function(){
         if(this.format == 24 && this.hour.toString().length === 1){
           this.hour = (this.hour < 10) ? ("0" + this.hour) : this.hour;
+        }
+      },
+        
+      _roll: function(e,input,hour) {
+          if (e.key == "ArrowUp" || e.key == "ArrowDown") {
+            let n = parseInt(input.value);
+            if (!isNaN(n)) {
+                let roll = false;
+                let dir = 0;
+                if (e.key == "ArrowUp") {
+                    n++;
+                    if (hour && n == 13 || !hour && n == 60) {
+                        n = hour ? 1 : 0;
+                        roll = true;
+                        dir = 1;
+                    }
+                } else {
+                    n--;
+                    if (n == 0 && hour || n == -1 && !hour) {
+                        n = hour ? 12 : 59;
+                        roll = true;
+                        dir = -1;
+                    }
+                }
+                if (roll) {
+                    if (hour) {
+                        if (this.amPm == "PM") {
+                            this.amPm = "AM";
+                        } else {
+                            this.amPm = "PM";
+                        }
+                    } else {
+                        let h = this.hour;
+                        if (typeof(h) != "number") {
+                            h = parseInt(h);
+                        }
+                        h += dir;
+                        if (dir == -1 && h == 11 || dir == 1 && h == 12) {
+                            if (this.amPm == "PM") {
+                                this.amPm = "AM";
+                            } else {
+                                this.amPm = "PM";
+                            }
+                        }
+                        if (h < 10) {
+                            h = '0' + h;
+                        }
+                        this.set('hour', h);
+                    }
+                }
+                var s = "";
+                if (n < 10) {
+                    s += "0";
+                }
+                s += n;
+                e.preventDefault();
+                input.value = s;
+            }
+          }
+      },
+        
+      _hourKeyDown: function(e) {
+        if (this._roll(e, this.$.hour, true)) {
+            return;
+        }
+        let v = this.$.hour.value;
+        let t = this.$.hour.$.nativeInput;
+        if (e.key == "ArrowRight" && t.selectionEnd == 2) {
+            this.$.min.focus();
+            return;
+        }
+        if (v && v.length == 2
+            && e.key && e.key.length == 1
+            && t.selectionStart == t.selectionEnd) {
+            e.preventDefault();
+        }
+      },
+      _minKeyDown: function(e) {
+        if (this._roll(e, this.$.min, false)) {
+            return;
+        }
+        let v = this.$.min.value;
+        let t = this.$.min.$.nativeInput;
+        if (e.key == "ArrowLeft" && t.selectionStart == 0) {
+            this.$.hour.focus();
+            return;    
+        }
+        if (v && v.length == 2
+            && e.key && e.key.length == 1
+            && t.selectionStart == t.selectionEnd) {
+          e.preventDefault();
+        }
+      },
+      _hourKeyUp: function(e) {
+        let t = this.$.hour.$.nativeInput;
+        let i = parseInt(e.key);
+        if (!isNaN(i) && !this.min) {
+            this.$.min.value = '00';
+        }
+        if (!(i >= 0 && i <= 9) || (t.selectionStart != t.selectionEnd)) {
+            return;
+        }
+        if (this.hour > 10 || this.hour > 2) {
+            let h = this.hour;
+            if (h > 12) {
+                this.amPm = "PM";
+                h %= 12;
+            }
+            if (h < 10) {
+                h = '0' + h;
+            }
+            this.set('hour', h);
+            this.$.min.focus();
+            if (this.$.min.value) {
+                this.$.min.$.nativeInput.select();
+            }
+        }
+      },
+      _minKeyUp: function(e) {
+        if (e.key == 'a' || e.key == 'A') {
+            this.set('amPm', 'AM');
+        } else if (e.key == 'p' || e.key == 'P') {
+            this.set('amPm', 'PM');
         }
       },
       /**
